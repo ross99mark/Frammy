@@ -1,0 +1,1941 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Framyy CCUS Experience</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Three.js & Post-Processing (EffectComposer & UnrealBloomPass) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            brand: {
+              cyan: '#06b6d4',
+              sky: '#38bdf8',
+              azure: '#0284c7',
+              navy: '#0c4a6e',
+              deep: '#03192e',
+              abyss: '#010b14'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      /* Deep oceanic midnight radial gradient matching screenshot */
+      background: radial-gradient(ellipse at 50% 35%, #03213a 0%, #021426 40%, #010c18 72%, #00060e 100%);
+      color: #f0f9ff;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+    }
+
+    #webgl-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      outline: none;
+    }
+
+    /* Glassmorphism utility classes */
+    .glass-card {
+      background: rgba(3, 16, 30, 0.88);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(56, 189, 248, 0.28);
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.85), 0 0 35px rgba(2, 132, 199, 0.16);
+    }
+
+    .glass-pill {
+      background: rgba(3, 20, 36, 0.78);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(56, 189, 248, 0.22);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(186, 230, 253, 0.15);
+    }
+
+    .zone-hud {
+      transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1), transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      will-change: opacity, transform;
+    }
+
+    @keyframes wheel-bob {
+      0% { transform: translateY(0); opacity: 1; }
+      50% { transform: translateY(5px); opacity: 0.2; }
+      100% { transform: translateY(0); opacity: 1; }
+    }
+    .animate-wheel-bob {
+      animation: wheel-bob 1.8s ease-in-out infinite;
+    }
+  </style>
+</head>
+<body class="font-sans">
+
+  <!-- 3D Canvas Background -->
+  <div id="webgl-canvas"></div>
+
+  <!-- Welcome / Intro Modal -->
+  <div id="welcome-modal" class="fixed inset-0 z-50 flex flex-col justify-between items-center p-6 sm:p-12 bg-radial from-[#041a2e]/95 via-[#021220]/98 to-[#00060e] backdrop-blur-2xl transition-opacity duration-700">
+    <div class="flex items-center space-x-3 pt-2">
+      <!-- Authentic Framyy Logo Squircle matching reference -->
+      <div class="w-11 h-11 rounded-2xl bg-gradient-to-b from-[#ff3b20] via-[#ff2211] to-[#f50c00] flex flex-col items-center justify-center p-2.5 space-y-1.5 shadow-[0_0_24px_rgba(255,40,20,0.55)] border border-white/20">
+        <div class="w-full h-1.5 bg-white rounded-full"></div>
+        <div class="w-3/5 h-1.5 bg-white rounded-full self-start"></div>
+      </div>
+      <div>
+        <span class="block text-sm sm:text-base font-black tracking-widest text-white font-mono">FRAM<span class="text-[#ff782d]">YY</span></span>
+        <span class="block text-[10px] sm:text-xs uppercase tracking-wider text-sky-400 font-semibold font-mono">CCUS Experience</span>
+      </div>
+    </div>
+
+    <div class="max-w-xl w-full text-center space-y-6">
+      <div class="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-sky-300 text-xs font-mono tracking-widest uppercase">
+        <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+        <span>Interactive 3D Corridor</span>
+      </div>
+
+      <h1 class="text-3xl sm:text-5xl font-light tracking-tight text-white leading-tight">
+        Pioneering <span class="font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-sky-300 to-blue-200">Carbon Capture</span>
+      </h1>
+
+      <p class="text-sky-100/75 text-xs sm:text-sm md:text-base leading-relaxed font-light">
+        Explore our six milestone CCUS installations. Scroll to cruise cleanly from point to point along the deep oceanic corridor.
+      </p>
+
+      <div class="pt-2 space-y-2">
+        <div class="flex justify-between text-xs font-mono text-sky-400/80 tracking-widest uppercase">
+          <span>Initializing Experience</span>
+          <span id="loader-pct">0%</span>
+        </div>
+        <div class="w-full h-1.5 bg-black/50 border border-sky-900/40 rounded-full overflow-hidden p-0.5">
+          <div id="loader-bar" class="h-full bg-gradient-to-r from-blue-500 via-sky-400 to-cyan-300 rounded-full transition-all duration-300 ease-out" style="width: 0%"></div>
+        </div>
+      </div>
+
+      <div class="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
+        <button id="btn-enter-sound" class="w-full sm:w-auto px-8 py-3.5 rounded-full font-semibold text-xs font-mono uppercase tracking-widest bg-gradient-to-r from-cyan-400 to-sky-500 hover:from-cyan-300 hover:to-sky-400 text-slate-950 shadow-[0_0_25px_rgba(56,189,248,0.45)] hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center justify-center space-x-2">
+          <svg class="w-4 h-4 text-slate-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
+          <span>Enter with sound</span>
+        </button>
+
+        <button id="btn-enter-mute" class="w-full sm:w-auto px-7 py-3.5 rounded-full border border-sky-500/30 text-sky-200/80 hover:text-white hover:border-cyan-400 font-semibold text-xs font-mono uppercase tracking-widest hover:bg-sky-500/10 active:scale-95 transition-all cursor-pointer flex items-center justify-center space-x-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"/></svg>
+          <span>Enter without sound</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="text-[11px] font-mono text-sky-400/70 flex flex-wrap justify-center items-center gap-3 tracking-widest uppercase pb-2">
+      <span>Framyy Platform</span>
+      <span>•</span>
+      <span>Brevik, Norway</span>
+      <span>•</span>
+      <span>Northern Lights</span>
+    </div>
+  </div>
+
+  <!-- Header -->
+  <header class="fixed top-0 inset-x-0 z-30 p-5 sm:p-7 flex justify-between items-center pointer-events-none">
+    <div class="flex items-center space-x-3.5 pointer-events-auto cursor-pointer group" onclick="goToIntroPage()" title="Return to start constellation">
+      <!-- Authentic Framyy Logo Squircle matching image_96fe2c.png -->
+      <div class="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-b from-[#ff3b20] via-[#ff2211] to-[#f50c00] flex flex-col items-center justify-center p-2.5 sm:p-3 space-y-1.5 shadow-[0_0_24px_rgba(255,40,20,0.55)] border border-white/20 group-hover:scale-105 group-hover:shadow-[0_0_32px_rgba(255,50,25,0.85)] transition-all">
+        <div class="w-full h-1.5 bg-white rounded-full shadow-sm"></div>
+        <div class="w-3/5 h-1.5 bg-white rounded-full self-start shadow-sm"></div>
+      </div>
+      <div>
+        <span class="block text-base sm:text-lg font-black tracking-widest text-white font-mono leading-tight">FRAM<span class="text-[#ff782d]">YY</span></span>
+        <span class="block text-[10px] sm:text-[11px] uppercase tracking-wider text-sky-400 font-semibold font-mono">CCUS Experience</span>
+      </div>
+    </div>
+
+    <div class="flex items-center space-x-3 pointer-events-auto">
+      <!-- Orange CTA Dashboard Button (Without Icon) -->
+      <button id="btn-dashboard" class="px-4 sm:px-6 py-2 sm:py-2.5 rounded-full text-[11px] sm:text-xs font-mono font-bold tracking-widest uppercase bg-gradient-to-r from-[#ff782d] via-[#ff5b2b] to-[#ff3b30] hover:from-[#ff8b42] hover:via-[#ff6e3d] hover:to-[#ff4a3f] text-white shadow-[0_0_24px_rgba(255,100,40,0.5)] hover:shadow-[0_0_34px_rgba(255,100,40,0.8)] hover:scale-105 active:scale-95 transition-all flex items-center justify-center cursor-pointer border border-orange-200/50">
+        <span>Dashboard</span>
+      </button>
+
+      <!-- ALL Button with Orange Border -->
+      <button id="btn-all-topics" class="glass-pill px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-full text-[11px] sm:text-xs font-mono font-semibold tracking-widest uppercase text-orange-400 border border-orange-500/70 hover:border-orange-400 hover:text-white hover:bg-orange-500/20 active:scale-95 transition-all shadow-[0_0_20px_rgba(255,120,45,0.25)] flex items-center space-x-1.5 sm:space-x-2 cursor-pointer">
+        <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-orange-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="7" height="7" rx="1.5"/>
+          <rect x="14" y="3" width="7" height="7" rx="1.5"/>
+          <rect x="14" y="14" width="7" height="7" rx="1.5"/>
+          <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+        </svg>
+        <span>All</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- MOBILE HORIZONTAL TOP PAGINATOR (< md) -->
+  <div class="md:hidden fixed top-20 inset-x-0 z-20 flex justify-center pointer-events-auto px-4">
+    <div class="glass-pill px-3.5 py-1.5 rounded-full flex items-center relative shadow-2xl">
+      <!-- Background Guide Track Line -->
+      <div class="absolute left-5 right-5 h-0.5 bg-sky-500/20 rounded-full pointer-events-none"></div>
+
+      <!-- Glowing Active Horizontal Progress Line -->
+      <div id="rail-progress-bar-mobile" class="absolute left-5 h-0.5 bg-gradient-to-r from-cyan-400 to-sky-300 rounded-full shadow-[0_0_8px_rgba(56,189,248,0.9)] pointer-events-none transition-all duration-300" style="width: 0%"></div>
+
+      <!-- Horizontal Icons Container -->
+      <div id="waypoint-rail-mobile" class="relative z-10 flex items-center space-x-3.5">
+        <!-- Rendered via JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- DASHBOARD MODAL (Matching site aesthetic with animated particle background) -->
+  <div id="dashboard-modal" class="fixed inset-0 z-50 bg-[#000814]/75 backdrop-blur-md transition-all duration-300 opacity-0 pointer-events-none flex items-center justify-center p-4">
+    <!-- Animated Particle Canvas under popup -->
+    <canvas id="dashboard-particle-canvas" class="absolute inset-0 pointer-events-none w-full h-full"></canvas>
+
+    <div class="relative z-10 max-w-[460px] w-full bg-[#031526]/95 border border-cyan-500/35 rounded-[32px] p-8 sm:p-10 shadow-[0_25px_70px_rgba(0,0,0,0.9),0_0_35px_rgba(6,182,212,0.18)] space-y-6">
+      <!-- Close Button -->
+      <button id="btn-close-dashboard" class="absolute top-6 right-6 p-2 rounded-full text-sky-400/80 hover:text-white hover:bg-sky-500/15 transition-colors cursor-pointer" title="Close">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+
+      <!-- Brand Header -->
+      <div>
+        <h2 class="text-3xl font-black text-white tracking-tight">
+          Fram<span class="text-[#ff782d]">yy</span>
+        </h2>
+        <p class="text-sm text-sky-200/70 font-normal mt-1.5 leading-snug">
+          Transferring a concept onto a design system
+        </p>
+      </div>
+
+      <!-- Work Email Field with Amber Glow -->
+      <div class="space-y-2 pt-1">
+        <label class="block text-[11px] font-bold text-sky-300/80 uppercase tracking-widest font-mono">
+          Work Email
+        </label>
+        <div class="relative">
+          <input 
+            type="email" 
+            placeholder="you@company.com" 
+            value="you@company.com" 
+            class="w-full bg-[#020b14] text-slate-100 text-sm font-sans px-4 py-3.5 rounded-xl border-2 border-amber-500/80 shadow-[0_0_18px_rgba(245,158,11,0.22)] focus:outline-none focus:border-amber-400 transition-all pr-28"
+          />
+          <div class="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-black text-white text-[11px] font-medium border border-slate-700/60 shadow">
+            <svg class="w-3.5 h-3.5 text-sky-400" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
+            </svg>
+            <span class="text-[10px] whitespace-nowrap">Unlock</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Continue with Figma Button (Blue CTA matching site aesthetic) -->
+      <button class="w-full py-3.5 px-6 rounded-2xl font-bold text-sm text-slate-950 bg-gradient-to-r from-cyan-400 via-sky-400 to-blue-500 shadow-[0_10px_30px_rgba(6,182,212,0.38)] hover:shadow-[0_12px_36px_rgba(56,189,248,0.55)] hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center space-x-2.5 cursor-pointer">
+        <!-- Figma Logo SVG -->
+        <svg class="w-4 h-4 text-slate-950" viewBox="0 0 38 57" fill="none">
+          <path d="M19 28.5C19 23.2533 23.2533 19 28.5 19C33.7467 19 38 23.2533 38 28.5C38 33.7467 33.7467 38 28.5 38C23.2533 38 19 33.7467 19 28.5Z" fill="currentColor"/>
+          <path d="M0 47.5C0 42.2533 4.25329 38 9.5 38H19V47.5C19 52.7467 14.7467 57 9.5 57C4.25329 57 0 52.7467 0 47.5Z" fill="currentColor"/>
+          <path d="M19 0V19H28.5C33.7467 19 38 14.7467 38 9.5C38 4.25329 33.7467 0 28.5 0H19Z" fill="currentColor"/>
+          <path d="M0 9.5C0 14.7467 4.25329 19 9.5 19H19V0H9.5C4.25329 0 0 4.25329 0 9.5Z" fill="currentColor"/>
+          <path d="M0 28.5C0 33.7467 4.25329 38 9.5 38H19V19H9.5C4.25329 19 0 23.2533 0 28.5Z" fill="currentColor"/>
+        </svg>
+        <span>Continue with Figma</span>
+      </button>
+
+      <!-- Invitation Notice & Links -->
+      <div class="pt-4 border-t border-cyan-500/20 space-y-3">
+        <p class="text-xs text-sky-200/70 leading-relaxed font-normal">
+          Sign-in is <strong class="text-white font-semibold">invitation only</strong>. We check your email against the list and ask Figma to confirm it is you. No password to invent.
+        </p>
+
+        <div class="flex items-center space-x-4 text-xs font-semibold">
+          <a href="#" onclick="sound.playClick(); return false;" class="text-[#f59e0b] hover:text-amber-400 hover:underline">
+            Check again
+          </a>
+          <span class="text-slate-600">•</span>
+          <a href="#" onclick="sound.playClick(); return false;" class="text-[#f59e0b] hover:text-amber-400 hover:underline">
+            Request access
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SIDE-SLIDE ALL TOPICS DRAWER (Updated with Deep Navy & Orange Accent Palette) -->
+  <div id="topics-drawer" class="fixed inset-0 z-50 bg-slate-950/40 backdrop-blur-[6px] transition-all duration-300 opacity-0 pointer-events-none flex items-center justify-center md:justify-end p-3 sm:p-8">
+    <div id="topics-content" class="relative max-w-2xl w-full flex items-center transform translate-y-6 md:translate-y-0 md:translate-x-12 transition-transform duration-300">
+      
+      <!-- Desktop External Close Button (hidden on mobile to prevent edge clipping) -->
+      <button id="btn-close-topics" class="hidden md:flex absolute -left-12 sm:-left-16 top-1/2 -translate-y-1/2 w-10 h-10 rounded-xl bg-white shadow-2xl items-center justify-center text-slate-800 hover:text-black hover:scale-105 active:scale-95 transition-all cursor-pointer border border-slate-200" title="Close">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+
+      <!-- Clean White 6-Cell Grid Card (2 Columns on mobile & desktop) -->
+      <div class="relative w-full bg-white rounded-3xl shadow-[0_30px_90px_rgba(0,0,0,0.85)] overflow-hidden border border-cyan-500/20 max-h-[85vh] overflow-y-auto">
+        
+        <!-- Mobile In-Card Close Button (always visible on touch devices) -->
+        <button onclick="closeTopicsDrawer()" class="md:hidden absolute top-3 right-3 z-20 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-800 active:scale-90 transition-transform">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+
+        <div class="grid grid-cols-2 divide-x divide-y divide-slate-100 pt-2 sm:pt-0">
+          
+          <!-- Cell 1: Turn Ideas Into Products -->
+          <div onclick="goToStation(1); closeTopicsDrawer();" class="group p-4 sm:p-8 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-slate-50/80 transition-colors">
+            <div class="relative w-12 h-12 sm:w-16 sm:h-16 mb-2 sm:mb-3 flex items-center justify-center text-[#0a2540] group-hover:scale-110 transition-transform duration-300">
+              <svg class="w-10 h-10 sm:w-14 sm:h-14" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="3.2">
+                <circle cx="50" cy="50" r="38"/>
+                <ellipse cx="50" cy="50" rx="20" ry="38"/>
+                <line x1="12" y1="50" x2="88" y2="50"/>
+                <path d="M 68 76 A 38 38 0 0 1 84 62" stroke="#ff782d" stroke-width="6.5" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <span class="text-[11px] sm:text-xs font-bold text-slate-900 tracking-tight sm:tracking-wider font-mono leading-tight">Turn Ideas Into Products</span>
+          </div>
+
+          <!-- Cell 2: Stop Hunting Components -->
+          <div onclick="goToStation(2); closeTopicsDrawer();" class="group p-4 sm:p-8 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-slate-50/80 transition-colors">
+            <div class="relative w-12 h-12 sm:w-16 sm:h-16 mb-2 sm:mb-3 flex items-center justify-center text-[#0a2540] group-hover:scale-110 transition-transform duration-300">
+              <svg class="w-10 h-10 sm:w-14 sm:h-14" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="3.2">
+                <path d="M44 14h12v18l18 36a6 6 0 0 1-5 9H31a6 6 0 0 1-5-9l18-36V14z"/>
+                <line x1="41" y1="14" x2="59" y2="14"/>
+                <circle cx="50" cy="52" r="4.5"/>
+                <circle cx="42" cy="65" r="5.5"/>
+                <circle cx="58" cy="65" r="5.5"/>
+                <path d="M 72 72 A 32 32 0 0 1 76 60" stroke="#ff782d" stroke-width="6.5" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <span class="text-[11px] sm:text-xs font-bold text-slate-900 tracking-tight sm:tracking-wider font-mono leading-tight">Stop Hunting Components</span>
+          </div>
+
+          <!-- Cell 3: Drop Two Links -->
+          <div onclick="goToStation(3); closeTopicsDrawer();" class="group p-4 sm:p-8 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-slate-50/80 transition-colors">
+            <div class="relative w-12 h-12 sm:w-16 sm:h-16 mb-2 sm:mb-3 flex items-center justify-center text-[#0a2540] group-hover:scale-110 transition-transform duration-300">
+              <svg class="w-10 h-10 sm:w-14 sm:h-14" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="3.2">
+                <path d="M42 16h16v12l10 14v38a6 6 0 0 1-6 6H38a6 6 0 0 1-6-6V42l10-14V16z"/>
+                <line x1="39" y1="16" x2="61" y2="16"/>
+                <circle cx="46" cy="54" r="3.2" fill="currentColor"/>
+                <circle cx="54" cy="64" r="4.2" fill="currentColor"/>
+                <circle cx="45" cy="72" r="2.8" fill="currentColor"/>
+                <path d="M 62 80 h 6 a 6 6 0 0 0 6 -6 v -8" stroke="#ff782d" stroke-width="6.5" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <span class="text-[11px] sm:text-xs font-bold text-slate-900 tracking-tight sm:tracking-wider font-mono leading-tight">Drop Two Links</span>
+          </div>
+
+          <!-- Cell 4: Zero Risk, Control -->
+          <div onclick="goToStation(4); closeTopicsDrawer();" class="group p-4 sm:p-8 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-slate-50/80 transition-colors">
+            <div class="relative w-12 h-12 sm:w-16 sm:h-16 mb-2 sm:mb-3 flex items-center justify-center text-[#0a2540] group-hover:scale-110 transition-transform duration-300">
+              <svg class="w-10 h-10 sm:w-14 sm:h-14" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="3.2">
+                <path d="M36 62c-6-6-10-14-10-22a24 24 0 1 1 48 0c0 8-4 16-10 22v6H36v-6z"/>
+                <line x1="40" y1="74" x2="60" y2="74"/>
+                <circle cx="50" cy="40" r="8"/>
+                <path d="M 64 62 v 6 h 6" stroke="#ff782d" stroke-width="6.5" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <span class="text-[11px] sm:text-xs font-bold text-slate-900 tracking-tight sm:tracking-wider font-mono leading-tight">Zero Risk, Control</span>
+          </div>
+
+          <!-- Cell 5: Full Transparency -->
+          <div onclick="goToStation(5); closeTopicsDrawer();" class="group p-4 sm:p-8 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-slate-50/80 transition-colors">
+            <div class="relative w-12 h-12 sm:w-16 sm:h-16 mb-2 sm:mb-3 flex items-center justify-center text-[#0a2540] group-hover:scale-110 transition-transform duration-300">
+              <svg class="w-10 h-10 sm:w-14 sm:h-14" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="3.2">
+                <rect x="30" y="38" width="22" height="12" rx="6" transform="rotate(-45 41 44)"/>
+                <rect x="48" y="56" width="22" height="12" rx="6" transform="rotate(-45 59 62)"/>
+                <path d="M 52 18 A 32 32 0 0 1 76 34" stroke="#ff782d" stroke-width="6.5" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <span class="text-[11px] sm:text-xs font-bold text-slate-900 tracking-tight sm:tracking-wider font-mono leading-tight">Full Transparency</span>
+          </div>
+
+          <!-- Cell 6: Got Questions? FAQ -->
+          <div onclick="goToStation(6); closeTopicsDrawer();" class="group p-4 sm:p-8 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-slate-50/80 transition-colors">
+            <div class="relative w-12 h-12 sm:w-16 sm:h-16 mb-2 sm:mb-3 flex items-center justify-center text-[#0a2540] group-hover:scale-110 transition-transform duration-300">
+              <svg class="w-10 h-10 sm:w-14 sm:h-14" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="3.2">
+                <circle cx="50" cy="50" r="36"/>
+                <circle cx="50" cy="50" r="24"/>
+                <circle cx="50" cy="50" r="10" fill="currentColor"/>
+                <path d="M 68 76 A 36 36 0 0 1 82 64" stroke="#ff782d" stroke-width="6.5" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <span class="text-[11px] sm:text-xs font-bold text-slate-900 tracking-tight sm:tracking-wider font-mono leading-tight">Got Questions? FAQ</span>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Terms & Legal Modal -->
+  <div id="terms-modal" class="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-2xl transition-all duration-300 opacity-0 pointer-events-none flex items-center justify-center p-6">
+    <div class="max-w-xl w-full glass-card p-6 sm:p-8 rounded-3xl border border-cyan-500/40 space-y-4">
+      <div class="flex justify-between items-center border-b border-sky-500/20 pb-3">
+        <h3 class="text-lg font-bold text-white font-mono uppercase tracking-wider">Terms & Legal</h3>
+        <button id="btn-close-terms" class="p-1.5 rounded-full glass-pill text-sky-300 hover:text-white cursor-pointer">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="text-xs text-sky-100/80 space-y-3 leading-relaxed max-h-72 overflow-y-auto pr-2">
+        <p><strong class="text-cyan-300">Framyy CCUS Experience</strong> provides interactive 3D simulations of Carbon Capture, Utilisation and Storage technologies based on real-world industrial installations.</p>
+        <p><strong class="text-white">Data Protection:</strong> This application does not track personally identifiable information. All settings are kept local to your current session.</p>
+        <p><strong class="text-white">Intellectual Property:</strong> Visual assets, 3D trajectory algorithms, and soundscapes are protected. Project case studies (Brevik, Northern Lights, EvoZero) are presented for educational and demonstration purposes.</p>
+      </div>
+      <div class="pt-3 border-t border-sky-500/20 flex justify-end">
+        <button id="btn-agree-terms" class="px-5 py-2 rounded-full bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-bold text-xs font-mono uppercase tracking-wider cursor-pointer">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Zone HUD Cards Container -->
+  <div id="zone-cards-container" class="fixed inset-0 z-10 pointer-events-none"></div>
+
+  <!-- Center-Bottom Scroll Prompt with Orange Mouse Icon (Elevated above bottom settings bar) -->
+  <div id="scroll-prompt" class="fixed bottom-24 sm:bottom-20 md:bottom-12 left-1/2 -translate-x-1/2 z-20 pointer-events-none flex flex-col items-center space-y-2 text-center transition-opacity duration-300">
+    <div class="w-5 h-8 rounded-full border-2 border-orange-500/90 flex justify-center pt-1.5 shadow-[0_0_16px_rgba(255,120,45,0.55)]">
+      <div class="w-1.5 h-2.5 rounded-full bg-[#ff782d] animate-wheel-bob shadow-[0_0_10px_#ff782d]"></div>
+    </div>
+    <span class="text-[10px] sm:text-[11px] text-sky-200/75 uppercase tracking-widest font-mono font-medium drop-shadow whitespace-nowrap">
+      Scroll or drag to fly along corridor
+    </span>
+  </div>
+
+  <!-- DESKTOP BORDERLESS VERTICAL NAVIGATION RAIL WITH CONTINUOUS PROGRESS LINE (hidden on mobile) -->
+  <div class="hidden md:flex fixed right-5 sm:right-8 top-1/2 -translate-y-1/2 z-20 pointer-events-auto flex-col items-center">
+    <div class="relative flex flex-col items-center py-2">
+      <!-- Background Guide Track Line -->
+      <div class="absolute top-4 bottom-4 w-0.5 bg-sky-500/20 rounded-full pointer-events-none"></div>
+
+      <!-- Glowing Active Progress Line -->
+      <div id="rail-progress-bar-desktop" class="absolute top-4 w-0.5 bg-gradient-to-b from-cyan-400 to-sky-300 rounded-full shadow-[0_0_8px_rgba(56,189,248,0.8)] pointer-events-none transition-all duration-300" style="height: 0%"></div>
+
+      <!-- Floating Miniature Vector Icons Container -->
+      <div id="waypoint-rail-desktop" class="relative z-10 flex flex-col items-center space-y-6">
+        <!-- Rendered via JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer Utility Dock (Without Stepper) -->
+  <footer class="fixed bottom-5 right-5 sm:right-8 z-20 flex items-center space-x-2 pointer-events-auto">
+    <!-- Audio Mute/Unmute Toggle -->
+    <button id="btn-audio-toggle" class="glass-pill p-2.5 rounded-full text-sky-300 hover:text-white hover:border-cyan-400 transition-all cursor-pointer" title="Toggle audio">
+      <svg id="audio-icon-on" class="w-4 h-4 hidden text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
+      <svg id="audio-icon-off" class="w-4 h-4 text-sky-400/80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"/></svg>
+    </button>
+
+    <!-- Language Selector Dropdown -->
+    <div class="relative">
+      <button id="btn-lang-toggle" class="glass-pill px-2.5 py-2 rounded-full text-[11px] font-mono font-semibold tracking-wider text-sky-200/90 hover:text-white hover:border-cyan-400 flex items-center space-x-1 cursor-pointer">
+        <span id="current-lang-label">EN</span>
+        <svg class="w-3 h-3 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+      </button>
+      <div id="lang-dropdown" class="hidden absolute right-0 bottom-11 glass-card p-1 rounded-xl border border-cyan-500/30 text-xs font-mono space-y-0.5 w-20 shadow-2xl">
+        <button onclick="setLanguage('EN')" class="w-full text-left px-2 py-1.5 rounded-lg hover:bg-cyan-500/20 text-cyan-300">EN</button>
+        <button onclick="setLanguage('DE')" class="w-full text-left px-2 py-1.5 rounded-lg hover:bg-cyan-500/20 text-sky-200">DE</button>
+        <button onclick="setLanguage('NO')" class="w-full text-left px-2 py-1.5 rounded-lg hover:bg-cyan-500/20 text-sky-200">NO</button>
+      </div>
+    </div>
+
+    <!-- Terms & Conditions Button -->
+    <button id="btn-open-terms" class="glass-pill px-3 py-2 rounded-full text-[10px] font-mono tracking-wider text-sky-300/80 hover:text-white hover:border-cyan-400 transition-all cursor-pointer whitespace-nowrap">
+      Terms & Conditions
+    </button>
+  </footer>
+
+  <!-- SCRIPT ENGINE -->
+  <script>
+    const CCUS_ZONES = [
+      {
+        id: 1,
+        code: 'PILOT',
+        tag: 'INVITE-ONLY PILOT',
+        title: 'Turn Your Ideas Into Products. Let AI Handle Figma.',
+        description: 'Master complex design systems and ship UI without fighting components. Framyy does all the heavy lifting in one click.'
+      },
+      {
+        id: 2,
+        code: 'SYNC',
+        tag: 'DESIGN SYSTEM AUTOMATION',
+        title: 'Stop Hunting Down Components In Figma.',
+        desc1: 'Updating a brand manually is a nightmare. You spend weeks clicking through hundreds of buttons, cards, and states—only to miss half of them and do it all over again next month.',
+        desc2: 'Framyy changes the game. It connects your design system behind the scenes so a single click updates every color, font, and component across your entire product instantly.'
+      },
+      {
+        id: 3,
+        code: 'WORKFLOW',
+        tag: '4-STEP WORKFLOW',
+        title: 'Drop Two Links. Let Framyy Do The Rest.',
+        steps: [
+          { num: 'STEP 01', title: 'Paste Your Links', desc: 'Add your brand concept and design system library. Zero manual setup or tedious mapping required.' },
+          { num: 'STEP 02', title: 'Extract Your Style', desc: 'Framyy automatically maps colors, fonts, and radii. Preview all variables and tweak values before anything touches your master file.' },
+          { num: 'STEP 03', title: 'Clear Execution Plan', desc: 'Get an itemized visual breakdown for every layout, icon, and component before Framyy starts generating.' },
+          { num: 'STEP 04', title: 'Approve & Launch', desc: 'Leave feedback directly in Figma comments. Framyy only updates your design system when you give explicit approval.' }
+        ]
+      },
+      {
+        id: 4,
+        code: 'SECURITY',
+        tag: 'ENTERPRISE INTEGRITY',
+        title: 'Zero Risk. Complete Control Over Your Files.',
+        subtitle: 'Clear boundaries before Framyy makes a single change:',
+        bullets: [
+          { title: 'Read-Only Source Files', desc: 'Your brand concept stays untouched. Framyy reads your input without ever editing the original file.' },
+          { title: '100% Secure Integration', desc: 'All edits run strictly through the Figma plugin under your explicit user key and account identity.' },
+          { title: 'Master Component Safety', desc: 'Locked elements and core components are never overwritten. Framyy flags restricted items before taking action.' },
+          { title: 'Approval Before Execution', desc: 'No hidden updates. You preview the proposed plan on screen, make the call, and only then Framyy executes.' }
+        ]
+      },
+      {
+        id: 5,
+        code: 'AUDIT',
+        tag: 'ACTION LOGS & REPORTS',
+        title: 'Full Transparency. Zero Guesswork.',
+        subtitle: 'Framyy generates a clear report after every update, so you know exactly what changed in your library.',
+        features: [
+          { title: 'Automated Style Match', desc: 'Framyy compares your updated library against the original concept file and highlights any minor discrepancies before you publish.' },
+          { title: 'Transparent Action Logs', desc: 'Missing a font or hit a locked component? Framyy explains the exact reason why an element was skipped so you can fix it in seconds.' }
+        ]
+      },
+      {
+        id: 6,
+        code: 'FAQ',
+        tag: 'COMMON INQUIRIES',
+        title: 'Got Questions? Clear Answers.',
+        faqs: [
+          { q: 'Will Framyy break my existing design system structure?', a: 'Not a chance. Framyy plugs directly into your current variable names and naming conventions. It never creates duplicated collections, hidden layers, or unwanted chaos.' },
+          { q: 'Can Framyy mess up or overwrite my original Figma files?', a: 'Zero risk. Your brand concept file is strictly read-only. Framyy only updates the specific library you designate, and only when you run the plugin session.' },
+          { q: 'What happens if a font or asset is missing in Figma?', a: 'The process won’t freeze or fail. Framyy safely skips missing elements, flags them transparently in your execution report, and lets you resolve them on your own terms.' },
+          { q: 'Does Framyy make autonomous design decisions without me?', a: 'Never. Framyy acts as your co-pilot, doing the heavy lifting and proposing edits. Every final application of style stays 100% under human control.' }
+        ]
+      }
+    ];
+
+    // Flat miniature line icons for the right rail matching the screenshot
+    const ZONE_SVG_ICONS = {
+      1: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <circle cx="12" cy="12" r="9"/>
+            <ellipse cx="12" cy="12" rx="4.5" ry="9"/>
+            <line x1="3" y1="12" x2="21" y2="12"/>
+          </svg>`, // Globe
+      2: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M10 3h4v4l4 8a2 2 0 0 1-1.8 2.8H7.8A2 2 0 0 1 6 15l4-8V3z"/>
+            <line x1="9" y1="3" x2="15" y2="3"/>
+          </svg>`, // Lab Flask
+      3: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M9 3h6v3l2 3v10a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V9l2-3V3z"/>
+            <line x1="8" y1="3" x2="16" y2="3"/>
+            <circle cx="12" cy="13" r="1" fill="currentColor"/>
+            <circle cx="11" cy="16" r="1.2" fill="currentColor"/>
+          </svg>`, // Bottle
+      4: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M9 18h6m-4 3h2"/>
+            <path d="M8 14c-1.5-1.5-2-3-2-5a6 6 0 1 1 12 0c0 2-.5 3.5-2 5l-1 2H9l-1-2z"/>
+          </svg>`, // Lightbulb
+      5: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+          </svg>`, // Chain Links
+      6: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <circle cx="12" cy="12" r="9"/>
+            <circle cx="12" cy="12" r="5.5"/>
+            <circle cx="12" cy="12" r="2" fill="currentColor"/>
+          </svg>`  // Concentric Target
+    };
+
+    // Corridor configuration
+    const TOTAL_STATIONS = 6;
+    const STATION_DISTANCE = 22.0;
+
+    function getCorridorTrajectory(p) {
+      if (p <= 0.0) {
+        return {
+          camPos: new THREE.Vector3(0, 0, 4.5),
+          lookPos: new THREE.Vector3(0, 0, -1.8), // Perfectly centered on intro constellation
+          modelPos: new THREE.Vector3(0, 0, -1.8)
+        };
+      }
+
+      const curveX = Math.sin(p * 0.72) * 2.2 + Math.cos(p * 0.28 + 1.2) * 1.4;
+      const curveY = Math.sin(p * 0.54 + 0.4) * 0.85 + Math.cos(p * 0.21) * 0.45;
+      const z = - p * STATION_DISTANCE;
+
+      const modelX = curveX + 0.55;
+      const modelY = curveY;
+      const modelZ = z;
+
+      const aheadP = p + 0.52;
+      const aheadX = Math.sin(aheadP * 0.72) * 2.2 + Math.cos(aheadP * 0.28 + 1.2) * 1.4 + 0.55;
+      const aheadY = Math.sin(aheadP * 0.54 + 0.4) * 0.85 + Math.cos(aheadP * 0.21) * 0.45;
+      const aheadZ = - aheadP * STATION_DISTANCE;
+
+      const camPos = new THREE.Vector3(curveX + 0.1, curveY + 0.22, z + 4.9);
+      const lookPos = new THREE.Vector3(aheadX, aheadY, aheadZ);
+
+      return {
+        camPos,
+        lookPos,
+        modelPos: new THREE.Vector3(modelX, modelY, modelZ)
+      };
+    }
+
+    // Audio Engine
+    class SoundEngine {
+      constructor() {
+        this.ctx = null;
+        this.ambientGain = null;
+        this.filter = null;
+        this.noiseNode = null;
+        this.roomToneGain = null;
+        this.isPlaying = false;
+        this.pentatonicScale = [174.61, 196.00, 220.00, 261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99];
+        this.arpStep = 0;
+        this.lastNoteTime = 0;
+      }
+
+      init() {
+        if (this.ctx) return;
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (AudioContext) {
+          this.ctx = new AudioContext();
+        }
+      }
+
+      startAmbient() {
+        if (!this.ctx) this.init();
+        if (!this.ctx || this.isPlaying) return;
+
+        try {
+          if (this.ctx.state === 'suspended') {
+            this.ctx.resume();
+          }
+
+          this.ambientGain = this.ctx.createGain();
+          this.ambientGain.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+          this.ambientGain.gain.exponentialRampToValueAtTime(0.08, this.ctx.currentTime + 3);
+
+          this.filter = this.ctx.createBiquadFilter();
+          this.filter.type = 'lowpass';
+          this.filter.frequency.setValueAtTime(320, this.ctx.currentTime);
+
+          this.droneOsc1 = this.ctx.createOscillator();
+          this.droneOsc1.type = 'sine';
+          this.droneOsc1.frequency.setValueAtTime(52, this.ctx.currentTime);
+
+          this.droneOsc2 = this.ctx.createOscillator();
+          this.droneOsc2.type = 'triangle';
+          this.droneOsc2.frequency.setValueAtTime(104.3, this.ctx.currentTime);
+
+          const droneGain = this.ctx.createGain();
+          droneGain.gain.value = 0.35;
+          this.droneOsc1.connect(droneGain);
+          this.droneOsc2.connect(droneGain);
+          droneGain.connect(this.filter);
+
+          const bufferSize = this.ctx.sampleRate * 2;
+          const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+          const output = noiseBuffer.getChannelData(0);
+          let b0 = 0, b1 = 0, b2 = 0;
+          for (let i = 0; i < bufferSize; i++) {
+            const white = Math.random() * 2 - 1;
+            b0 = 0.99765 * b0 + white * 0.0990460;
+            b1 = 0.96300 * b1 + white * 0.1343710;
+            b2 = 0.57000 * b2 + white * 0.3735910;
+            output[i] = (b0 + b1 + b2) * 0.045;
+          }
+
+          this.noiseNode = this.ctx.createBufferSource();
+          this.noiseNode.buffer = noiseBuffer;
+          this.noiseNode.loop = true;
+
+          const airBandpass = this.ctx.createBiquadFilter();
+          airBandpass.type = 'bandpass';
+          airBandpass.frequency.setValueAtTime(420, this.ctx.currentTime);
+          airBandpass.Q.setValueAtTime(1.2, this.ctx.currentTime);
+
+          this.roomToneGain = this.ctx.createGain();
+          this.roomToneGain.gain.value = 0.45;
+
+          this.noiseNode.connect(airBandpass);
+          airBandpass.connect(this.roomToneGain);
+          this.roomToneGain.connect(this.filter);
+
+          this.filter.connect(this.ambientGain);
+          this.ambientGain.connect(this.ctx.destination);
+
+          this.droneOsc1.start();
+          this.droneOsc2.start();
+          this.noiseNode.start();
+
+          this.isPlaying = true;
+        } catch (e) {
+          console.warn('Audio start error:', e);
+        }
+      }
+
+      stopAmbient() {
+        if (!this.isPlaying || !this.ctx) return;
+        if (this.ambientGain) {
+          this.ambientGain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.6);
+          setTimeout(() => {
+            try {
+              if (this.droneOsc1) this.droneOsc1.stop();
+              if (this.droneOsc2) this.droneOsc2.stop();
+              if (this.noiseNode) this.noiseNode.stop();
+              this.isPlaying = false;
+            } catch (e) {}
+          }, 600);
+        }
+      }
+
+      triggerMelodicScrollNote(direction = 1) {
+        if (!this.ctx || !this.isPlaying) return;
+        const now = this.ctx.currentTime;
+        if (now - this.lastNoteTime < 0.12) return;
+        this.lastNoteTime = now;
+
+        if (direction > 0) {
+          this.arpStep = (this.arpStep + 1) % this.pentatonicScale.length;
+        } else {
+          this.arpStep = (this.arpStep - 1 + this.pentatonicScale.length) % this.pentatonicScale.length;
+        }
+
+        const freq = this.pentatonicScale[this.arpStep];
+        this.playGlassHarp(freq, 0.65);
+      }
+
+      playGlassHarp(freq, duration = 0.5) {
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+          gain.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+          gain.gain.linearRampToValueAtTime(0.065, this.ctx.currentTime + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + duration);
+        } catch (e) {}
+      }
+
+      playChime(index = 0) {
+        if (!this.ctx || !this.isPlaying) return;
+        const baseFreq = this.pentatonicScale[index % this.pentatonicScale.length] * 1.5;
+        this.playGlassHarp(baseFreq, 1.2);
+      }
+
+      playClick() {
+        if (!this.ctx) return;
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(880, this.ctx.currentTime);
+          gain.gain.setValueAtTime(0.03, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.04);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + 0.04);
+        } catch (e) {}
+      }
+    }
+
+    const sound = new SoundEngine();
+
+    // DOM References
+    const cardsContainer = document.getElementById('zone-cards-container');
+    const waypointRailDesktop = document.getElementById('waypoint-rail-desktop');
+    const waypointRailMobile = document.getElementById('waypoint-rail-mobile');
+
+    // Dynamic layout offsets per station (desktop staggered, mobile centered)
+    const ZONE_LAYOUT_OFFSETS = {
+      1: { leftCls: 'md:left-[12%]', topCls: 'md:top-[46%]' },
+      2: { leftCls: 'md:left-[17%]', topCls: 'md:top-[42%]' },
+      3: { leftCls: 'md:left-[11%]', topCls: 'md:top-[48%]' },
+      4: { leftCls: 'md:left-[16%]', topCls: 'md:top-[43%]' },
+      5: { leftCls: 'md:left-[13%]', topCls: 'md:top-[47%]' },
+      6: { leftCls: 'md:left-[15%]', topCls: 'md:top-[45%]' }
+    };
+
+    // Build Content Cards for Framyy
+    CCUS_ZONES.forEach((z) => {
+      const card = document.createElement('div');
+      card.id = `zone-card-${z.id}`;
+      const layout = ZONE_LAYOUT_OFFSETS[z.id] || { leftCls: 'md:left-[14%]', topCls: 'md:top-[45%]' };
+      card.className = `zone-hud absolute left-1/2 ${layout.leftCls} top-[53%] ${layout.topCls} max-w-[360px] sm:max-w-md md:max-w-lg lg:max-w-xl w-[calc(100vw-2rem)] sm:w-[calc(100vw-2.5rem)] pointer-events-auto opacity-0 pointer-events-none max-h-[74vh] md:max-h-[82vh] overflow-y-auto pr-1`;
+      
+      let innerBodyHtml = '';
+
+      if (z.id === 1) {
+        innerBodyHtml = `
+          <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full border border-orange-500/60 bg-orange-500/10 text-orange-400 text-[11px] font-mono font-bold tracking-widest uppercase mb-4 shadow-[0_0_15px_rgba(255,120,45,0.25)]">
+            <span class="w-1.5 h-1.5 rounded-full bg-orange-400 animate-ping"></span>
+            <span>${z.tag}</span>
+          </div>
+
+          <h1 class="text-2xl sm:text-3xl lg:text-4xl font-black text-white tracking-tight leading-tight mb-4">
+            Turn Your Ideas Into Products. <br class="hidden sm:inline"/>
+            <span class="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 via-amber-300 to-sky-200">Let AI Handle Figma.</span>
+          </h1>
+
+          <p class="text-sky-100/80 text-sm leading-relaxed mb-6 font-light">
+            ${z.description}
+          </p>
+
+          <div class="flex flex-wrap items-center gap-3 pt-1">
+            <!-- Orange Primary CTA Button (Go to Dashboard) -->
+            <button onclick="openDashboard()" class="px-6 py-3 rounded-full font-bold text-xs uppercase tracking-wider bg-gradient-to-r from-[#ff782d] via-[#ff5b2b] to-[#ff3b30] hover:from-[#ff8b42] hover:via-[#ff6e3d] hover:to-[#ff4a3f] text-white shadow-[0_0_24px_rgba(255,100,40,0.5)] hover:shadow-[0_0_34px_rgba(255,100,40,0.8)] hover:scale-105 active:scale-95 transition-all cursor-pointer border border-orange-200/40">
+              Dashboard
+            </button>
+
+            <!-- Expanding Blue Request Access Button & Form -->
+            <div id="request-access-container" class="relative inline-flex items-center">
+              <button id="btn-request-access" onclick="expandRequestAccess()" class="px-6 py-3 rounded-full font-bold text-xs font-mono uppercase tracking-wider bg-cyan-500/20 border-2 border-cyan-400 text-cyan-300 shadow-[0_0_20px_rgba(6,182,212,0.35)] hover:bg-cyan-500/30 hover:shadow-[0_0_28px_rgba(6,182,212,0.6)] hover:text-white transition-all cursor-pointer flex items-center space-x-1.5">
+                <span>Request Access</span>
+                <span class="text-sm">↗</span>
+              </button>
+
+              <form id="form-request-access" onsubmit="submitRequestAccess(event)" class="hidden flex items-center bg-[#021426]/95 border-2 border-cyan-400 rounded-full p-1 pl-4 shadow-[0_0_28px_rgba(6,182,212,0.5)] transition-all duration-300 w-72 sm:w-80">
+                <input 
+                  type="email" 
+                  id="input-request-email" 
+                  placeholder="Enter work email..." 
+                  required 
+                  class="bg-transparent text-white text-xs font-mono placeholder:text-sky-300/50 outline-none w-full pr-2"
+                />
+                <button type="submit" class="px-4 py-2 rounded-full bg-gradient-to-r from-cyan-400 to-sky-400 hover:from-cyan-300 hover:to-sky-300 text-slate-950 text-[11px] font-bold font-mono uppercase tracking-wider shadow hover:scale-105 active:scale-95 transition-all flex items-center space-x-1 cursor-pointer whitespace-nowrap">
+                  <span>Send</span>
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                </button>
+              </form>
+
+              <div id="badge-request-done" class="hidden items-center space-x-2 px-5 py-2.5 rounded-full bg-emerald-500/20 border border-emerald-400 text-emerald-300 text-xs font-mono shadow-[0_0_20px_rgba(16,185,129,0.35)]">
+                <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                <span>Request Under Review</span>
+              </div>
+            </div>
+          </div>
+        `;
+      } else if (z.id === 2) {
+        innerBodyHtml = `
+          <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-cyan-500/15 border border-cyan-500/35 text-cyan-300 text-[11px] font-mono font-bold tracking-widest uppercase mb-4">
+            <span>${z.tag}</span>
+          </div>
+
+          <h2 class="text-2xl sm:text-3xl font-black text-white tracking-tight leading-snug mb-4">
+            ${z.title}
+          </h2>
+
+          <p class="text-sky-100/80 text-sm leading-relaxed mb-4 font-light">
+            ${z.desc1}
+          </p>
+
+          <div class="p-4 rounded-2xl bg-cyan-950/40 border border-cyan-500/25 text-sky-100/90 text-xs sm:text-sm leading-relaxed">
+            <span class="text-[#ff782d] font-bold">Framyy changes the game.</span> It connects your design system behind the scenes so a single click updates every color, font, and component across your entire product instantly.
+          </div>
+        `;
+      } else if (z.id === 3) {
+        const stepItems = z.steps.map(s => `
+          <div class="p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl bg-[#020e1c]/80 border border-sky-500/20 hover:border-orange-500/40 transition-colors">
+            <span class="text-[9px] sm:text-[10px] font-mono font-bold text-orange-400 tracking-wider block mb-0.5">${s.num}</span>
+            <h4 class="text-[11px] sm:text-sm font-bold text-white mb-0.5 sm:mb-1 leading-tight">${s.title}</h4>
+            <p class="text-[10px] sm:text-[11px] text-sky-100/70 leading-snug sm:leading-relaxed font-light">${s.desc}</p>
+          </div>
+        `).join('');
+
+        innerBodyHtml = `
+          <div class="inline-flex items-center space-x-1.5 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full bg-cyan-500/15 border border-cyan-500/35 text-cyan-300 text-[10px] sm:text-[11px] font-mono font-bold tracking-widest uppercase mb-1.5 sm:mb-3">
+            <span>${z.tag}</span>
+          </div>
+
+          <h2 class="text-base sm:text-xl md:text-2xl font-black text-white tracking-tight leading-snug mb-2 sm:mb-3">
+            ${z.title}
+          </h2>
+
+          <div class="grid grid-cols-2 gap-1.5 sm:gap-2.5 mb-2.5 sm:mb-4">
+            ${stepItems}
+          </div>
+
+          <div class="pt-0.5 sm:pt-1">
+            <button onclick="sound.playClick(); openDashboard();" class="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-2.5 rounded-full font-bold text-[10px] sm:text-xs uppercase tracking-wider bg-gradient-to-r from-[#ff782d] via-[#ff5b2b] to-[#ff3b30] hover:from-[#ff8b42] hover:via-[#ff6e3d] hover:to-[#ff4a3f] text-white shadow-[0_0_22px_rgba(255,100,40,0.5)] hover:scale-105 active:scale-95 transition-all cursor-pointer border border-orange-200/40 inline-flex items-center justify-center space-x-1.5 sm:space-x-2">
+              <span>Connect Your Figma Library</span>
+              <svg class="w-3 h-3 sm:w-3.5 sm:h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+            </button>
+          </div>
+        `;
+      } else if (z.id === 4) {
+        const bulletItems = z.bullets.map(b => `
+          <div class="flex items-start space-x-2.5 sm:space-x-3">
+            <div class="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-[#ff782d] shadow-[0_0_8px_#ff782d] mt-1.5 flex-shrink-0"></div>
+            <div>
+              <span class="text-xs sm:text-sm font-bold text-white block leading-tight">${b.title}</span>
+              <p class="text-[10px] sm:text-xs text-sky-100/70 leading-snug sm:leading-relaxed font-light mt-0.5">${b.desc}</p>
+            </div>
+          </div>
+        `).join('');
+
+        innerBodyHtml = `
+          <div class="inline-flex items-center space-x-1.5 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full bg-cyan-500/15 border border-cyan-500/35 text-cyan-300 text-[10px] sm:text-[11px] font-mono font-bold tracking-widest uppercase mb-1.5 sm:mb-3">
+            <span>${z.tag}</span>
+          </div>
+
+          <h2 class="text-base sm:text-xl md:text-2xl font-black text-white tracking-tight leading-snug mb-1">
+            ${z.title}
+          </h2>
+          <p class="text-[11px] sm:text-xs font-mono text-sky-300/80 mb-2.5 sm:mb-4">${z.subtitle}</p>
+
+          <div class="space-y-2 sm:space-y-3">
+            ${bulletItems}
+          </div>
+        `;
+      } else if (z.id === 5) {
+        const featBoxes = z.features.map(f => `
+          <div class="p-4 rounded-2xl bg-[#020e1c]/80 border border-sky-500/20">
+            <h4 class="text-xs sm:text-sm font-bold text-white mb-1.5 flex items-center space-x-2">
+              <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+              <span>${f.title}</span>
+            </h4>
+            <p class="text-xs text-sky-100/75 leading-relaxed font-light">${f.desc}</p>
+          </div>
+        `).join('');
+
+        innerBodyHtml = `
+          <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-cyan-500/15 border border-cyan-500/35 text-cyan-300 text-[11px] font-mono font-bold tracking-widest uppercase mb-3">
+            <span>${z.tag}</span>
+          </div>
+
+          <h2 class="text-xl sm:text-2xl font-black text-white tracking-tight leading-snug mb-1">
+            ${z.title}
+          </h2>
+          <p class="text-xs sm:text-sm text-sky-100/80 mb-4 font-light">${z.subtitle}</p>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+            ${featBoxes}
+          </div>
+
+          <div class="pt-1">
+            <button onclick="sound.playClick(); openDashboard();" class="px-6 py-2.5 rounded-full font-bold text-xs uppercase tracking-wider bg-gradient-to-r from-cyan-400 via-sky-400 to-blue-500 hover:from-cyan-300 hover:via-sky-300 hover:to-blue-400 text-slate-950 shadow-[0_0_24px_rgba(6,182,212,0.45)] hover:scale-105 active:scale-95 transition-all cursor-pointer border border-cyan-200/50 inline-flex items-center space-x-2">
+              <span>Inspect Sample Action Log</span>
+              <svg class="w-3.5 h-3.5 text-slate-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            </button>
+          </div>
+        `;
+      } else if (z.id === 6) {
+        const faqItems = z.faqs.map(item => `
+          <div class="p-2 sm:p-3.5 rounded-xl sm:rounded-2xl bg-[#020e1c]/80 border border-sky-500/20">
+            <h4 class="text-[11px] sm:text-sm font-bold text-white mb-0.5 leading-snug">${item.q}</h4>
+            <p class="text-[10px] sm:text-xs text-sky-100/75 leading-snug sm:leading-relaxed font-light">${item.a}</p>
+          </div>
+        `).join('');
+
+        innerBodyHtml = `
+          <div class="inline-flex items-center space-x-1.5 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full bg-cyan-500/15 border border-cyan-500/35 text-cyan-300 text-[10px] sm:text-[11px] font-mono font-bold tracking-widest uppercase mb-1.5 sm:mb-3">
+            <span>${z.tag}</span>
+          </div>
+
+          <h2 class="text-base sm:text-xl md:text-2xl font-black text-white tracking-tight leading-snug mb-2 sm:mb-4">
+            ${z.title}
+          </h2>
+
+          <div class="space-y-1.5 sm:space-y-2.5">
+            ${faqItems}
+          </div>
+        `;
+      }
+
+      card.innerHTML = `
+        <div class="glass-card p-4 sm:p-8 rounded-[24px] sm:rounded-[32px] hover:border-cyan-500/50 transition-colors shadow-2xl">
+          ${innerBodyHtml}
+        </div>
+      `;
+      cardsContainer.appendChild(card);
+    });
+
+    // Populate Both Desktop Vertical & Mobile Horizontal Waypoints
+    CCUS_ZONES.forEach((z) => {
+      const zoneIdx = z.id;
+      
+      // Desktop Button
+      if (waypointRailDesktop) {
+        const btnDesktop = document.createElement('button');
+        btnDesktop.id = `waypoint-icon-desktop-${zoneIdx}`;
+        btnDesktop.className = 'group relative w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center text-sky-400/50 hover:text-cyan-300 transition-all duration-300 cursor-pointer';
+        btnDesktop.title = `ZONE 0${z.id} — ${z.title}`;
+        btnDesktop.onclick = () => goToStation(zoneIdx);
+        btnDesktop.innerHTML = `
+          <div class="hidden md:block absolute right-12 px-3 py-1.5 rounded-lg bg-[#031526] border border-cyan-500/30 text-[11px] font-mono text-cyan-300 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-xl">
+            ZONE 0${z.id} — ${z.title.split('.')[0]}
+          </div>
+          <div class="icon-slot transition-all duration-300 transform group-hover:scale-115">
+            ${ZONE_SVG_ICONS[zoneIdx] || ''}
+          </div>
+        `;
+        waypointRailDesktop.appendChild(btnDesktop);
+      }
+
+      // Mobile Horizontal Button
+      if (waypointRailMobile) {
+        const btnMobile = document.createElement('button');
+        btnMobile.id = `waypoint-icon-mobile-${zoneIdx}`;
+        btnMobile.className = 'w-7 h-7 rounded-full flex items-center justify-center text-sky-400/50 hover:text-cyan-300 transition-all duration-300 cursor-pointer';
+        btnMobile.onclick = () => goToStation(zoneIdx);
+        btnMobile.innerHTML = `
+          <div class="icon-slot transition-all duration-300 scale-85">
+            ${ZONE_SVG_ICONS[zoneIdx] || ''}
+          </div>
+        `;
+        waypointRailMobile.appendChild(btnMobile);
+      }
+    });
+
+    // All Topics Drawer Controls
+    const topicsDrawer = document.getElementById('topics-drawer');
+    const topicsContent = document.getElementById('topics-content');
+    const btnAllTopics = document.getElementById('btn-all-topics');
+    const btnCloseTopics = document.getElementById('btn-close-topics');
+
+    function openTopicsDrawer() {
+      sound.playClick();
+      topicsDrawer.classList.remove('opacity-0', 'pointer-events-none');
+      if (topicsContent) {
+        topicsContent.classList.remove('translate-x-12');
+      }
+    }
+    window.closeTopicsDrawer = function() {
+      sound.playClick();
+      topicsDrawer.classList.add('opacity-0', 'pointer-events-none');
+      if (topicsContent) {
+        topicsContent.classList.add('translate-x-12');
+      }
+    };
+    btnAllTopics.onclick = openTopicsDrawer;
+    btnCloseTopics.onclick = window.closeTopicsDrawer;
+
+    // Dashboard Modal Controls with dedicated 2D particle canvas loop
+    const dashboardModal = document.getElementById('dashboard-modal');
+    const btnDashboard = document.getElementById('btn-dashboard');
+    const btnCloseDashboard = document.getElementById('btn-close-dashboard');
+    const dashCanvas = document.getElementById('dashboard-particle-canvas');
+    let dashCtx = dashCanvas ? dashCanvas.getContext('2d') : null;
+    let dashAnimId = null;
+    let dashParticles = [];
+
+    function initDashParticles() {
+      if (!dashCanvas) return;
+      dashCanvas.width = window.innerWidth;
+      dashCanvas.height = window.innerHeight;
+      dashParticles = [];
+      const count = Math.min(80, Math.floor(window.innerWidth / 16));
+      for (let i = 0; i < count; i++) {
+        dashParticles.push({
+          x: Math.random() * dashCanvas.width,
+          y: Math.random() * dashCanvas.height,
+          radius: Math.random() * 2.2 + 0.8,
+          vx: (Math.random() - 0.5) * 0.45,
+          vy: (Math.random() - 0.5) * 0.45,
+          alpha: Math.random() * 0.6 + 0.25,
+          color: Math.random() > 0.4 ? 'rgba(56, 189, 248,' : 'rgba(245, 158, 11,'
+        });
+      }
+    }
+
+    function renderDashParticles() {
+      if (!dashCtx || dashboardModal.classList.contains('pointer-events-none')) return;
+      dashCtx.clearRect(0, 0, dashCanvas.width, dashCanvas.height);
+
+      dashParticles.forEach(p => {
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.x < 0) p.x = dashCanvas.width;
+        if (p.x > dashCanvas.width) p.x = 0;
+        if (p.y < 0) p.y = dashCanvas.height;
+        if (p.y > dashCanvas.height) p.y = 0;
+
+        dashCtx.beginPath();
+        dashCtx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        dashCtx.fillStyle = p.color + p.alpha + ')';
+        dashCtx.shadowBlur = 8;
+        dashCtx.shadowColor = '#38bdf8';
+        dashCtx.fill();
+      });
+
+      dashAnimId = requestAnimationFrame(renderDashParticles);
+    }
+
+    window.openDashboard = function() {
+      sound.playClick();
+      dashboardModal.classList.remove('opacity-0', 'pointer-events-none');
+      initDashParticles();
+      if (dashAnimId) cancelAnimationFrame(dashAnimId);
+      renderDashParticles();
+    };
+
+    window.closeDashboard = function() {
+      sound.playClick();
+      dashboardModal.classList.add('opacity-0', 'pointer-events-none');
+      if (dashAnimId) cancelAnimationFrame(dashAnimId);
+    };
+
+    btnDashboard.onclick = window.openDashboard;
+    btnCloseDashboard.onclick = window.closeDashboard;
+
+    // Terms Modal Controls
+    const termsModal = document.getElementById('terms-modal');
+    const btnOpenTerms = document.getElementById('btn-open-terms');
+    const btnCloseTerms = document.getElementById('btn-close-terms');
+    const btnAgreeTerms = document.getElementById('btn-agree-terms');
+
+    function openTerms() {
+      sound.playClick();
+      termsModal.classList.remove('opacity-0', 'pointer-events-none');
+    }
+    function closeTerms() {
+      sound.playClick();
+      termsModal.classList.add('opacity-0', 'pointer-events-none');
+    }
+    btnOpenTerms.onclick = openTerms;
+    btnCloseTerms.onclick = closeTerms;
+    btnAgreeTerms.onclick = closeTerms;
+
+    // Request Access Expansion & Submission Handler
+    window.expandRequestAccess = function(e) {
+      if (e) e.stopPropagation();
+      sound.playClick();
+      const btn = document.getElementById('btn-request-access');
+      const form = document.getElementById('form-request-access');
+      const input = document.getElementById('input-request-email');
+      if (btn && form) {
+        btn.classList.add('hidden');
+        form.classList.remove('hidden');
+        if (input) {
+          setTimeout(() => input.focus(), 80);
+        }
+      }
+    };
+
+    window.submitRequestAccess = function(e) {
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      const input = document.getElementById('input-request-email');
+      const form = document.getElementById('form-request-access');
+      const badge = document.getElementById('badge-request-done');
+      const toast = document.getElementById('request-toast');
+      const toastMsg = document.getElementById('request-toast-msg');
+
+      const emailVal = input ? input.value.trim() : '';
+      if (!emailVal) return;
+
+      sound.playChime(3);
+
+      if (form && badge) {
+        form.classList.add('hidden');
+        badge.classList.remove('hidden');
+        badge.classList.add('flex');
+      }
+
+      if (toast) {
+        if (toastMsg) {
+          toastMsg.innerText = `We've received ${emailVal}. Our team is reviewing your access request!`;
+        }
+        toast.classList.remove('opacity-0', '-translate-y-6');
+        toast.classList.add('opacity-100', 'translate-y-0');
+
+        setTimeout(() => {
+          toast.classList.add('opacity-0', '-translate-y-6');
+          toast.classList.remove('opacity-100', 'translate-y-0');
+        }, 5000);
+      }
+    };
+
+    // Language Selector Toggle
+    const btnLangToggle = document.getElementById('btn-lang-toggle');
+    const langDropdown = document.getElementById('lang-dropdown');
+    const currentLangLabel = document.getElementById('current-lang-label');
+
+    btnLangToggle.onclick = (e) => {
+      e.stopPropagation();
+      sound.playClick();
+      langDropdown.classList.toggle('hidden');
+    };
+
+    window.setLanguage = function(lang) {
+      sound.playClick();
+      currentLangLabel.innerText = lang;
+      langDropdown.classList.add('hidden');
+    };
+
+    window.goToIntroPage = function() {
+      sound.playClick();
+      hasStartedJourney = false;
+      activeStation = 0;
+      targetScroll = 0.0;
+      currentScroll = 0.0; // Instantly lock physics to clean origin
+      sound.playChime(0);
+    };
+
+    window.resetToStartPage = function() {
+      window.goToIntroPage();
+    };
+
+    document.addEventListener('click', () => {
+      langDropdown.classList.add('hidden');
+    });
+
+    // THREE.JS SCENE SETUP
+    const container = document.getElementById('webgl-canvas');
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x010b16, 0.015); // Deep midnight ocean fog
+
+    const camera = new THREE.PerspectiveCamera(52, window.innerWidth / window.innerHeight, 0.05, 1000);
+    camera.position.set(0, 0, 4.5);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setClearColor(0x010b16, 1.0);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 0.95;
+    container.appendChild(renderer.domElement);
+
+    let composer = null;
+    let bloomPass = null;
+    try {
+      if (THREE.EffectComposer && THREE.UnrealBloomPass) {
+        composer = new THREE.EffectComposer(renderer);
+        const renderPass = new THREE.RenderPass(scene, camera);
+        composer.addPass(renderPass);
+
+        bloomPass = new THREE.UnrealBloomPass(
+          new THREE.Vector2(window.innerWidth, window.innerHeight),
+          0.32,
+          0.5,
+          0.82
+        );
+        composer.addPass(bloomPass);
+      }
+    } catch (e) {
+      console.warn('Post-processing composer notice:', e);
+    }
+
+    // Atmospheric dynamic lights
+    const ambientLight = new THREE.AmbientLight(0x0c4a6e, 1.3);
+    scene.add(ambientLight);
+
+    const sunShaftLight1 = new THREE.DirectionalLight(0x38bdf8, 1.15);
+    sunShaftLight1.position.set(2, 38, 8);
+    scene.add(sunShaftLight1);
+
+    const sunShaftLight2 = new THREE.DirectionalLight(0x0284c7, 0.85);
+    sunShaftLight2.position.set(-6, 32, -12);
+    scene.add(sunShaftLight2);
+
+    const travelingLight = new THREE.PointLight(0x0ea5e9, 0.45, 14);
+    scene.add(travelingLight);
+
+    // Glow sprite canvas texture
+    function createGlowSpriteTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 64;
+      canvas.height = 64;
+      const ctx = canvas.getContext('2d');
+      const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 30);
+      gradient.addColorStop(0, 'rgba(255, 255, 255, 0.98)');
+      gradient.addColorStop(0.2, 'rgba(56, 189, 248, 0.75)');
+      gradient.addColorStop(0.5, 'rgba(2, 132, 199, 0.25)');
+      gradient.addColorStop(1, 'rgba(3, 105, 161, 0)');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, 64, 64);
+      return new THREE.CanvasTexture(canvas);
+    }
+    const sparkTexture = createGlowSpriteTexture();
+
+    // 3D Particle Models
+    const particleModels = [];
+
+    function createParticleModel(geometries, pointCount = 1350, baseColor = 0xffffff, zoneId = 1) {
+      const group = new THREE.Group();
+      const pointsArray = [];
+
+      geometries.forEach(geo => {
+        let pts = [];
+        if (geo.isBufferGeometry) {
+          const pos = geo.attributes.position;
+          for (let i = 0; i < pos.count; i++) {
+            pts.push(new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i)));
+          }
+        }
+        pointsArray.push(...pts);
+      });
+
+      const actualCount = Math.min(pointCount, pointsArray.length);
+      const bufferGeo = new THREE.BufferGeometry();
+      const targetPos = new Float32Array(actualCount * 3);
+      const currentPos = new Float32Array(actualCount * 3);
+      const scatterPos = new Float32Array(actualCount * 3);
+      const colors = new Float32Array(actualCount * 3);
+
+      // Clean, bright diamond-white particle hues
+      const colorWhite = new THREE.Color(0xffffff);
+      const colorGlint = new THREE.Color(0xf0f9ff);
+
+      for (let i = 0; i < actualCount; i++) {
+        const pt = pointsArray[Math.floor((i / actualCount) * pointsArray.length)];
+        targetPos[i * 3] = pt.x * 1.14;
+        targetPos[i * 3 + 1] = pt.y * 1.14;
+        targetPos[i * 3 + 2] = pt.z * 1.14;
+
+        const spread = 7.0;
+        scatterPos[i * 3] = pt.x + (Math.random() - 0.5) * spread;
+        scatterPos[i * 3 + 1] = pt.y + (Math.random() - 0.5) * spread;
+        scatterPos[i * 3 + 2] = pt.z + (Math.random() - 0.5) * spread;
+
+        currentPos[i * 3] = scatterPos[i * 3];
+        currentPos[i * 3 + 1] = scatterPos[i * 3 + 1];
+        currentPos[i * 3 + 2] = scatterPos[i * 3 + 2];
+
+        const clr = Math.random() > 0.35 ? colorWhite : colorGlint;
+        colors[i * 3] = clr.r;
+        colors[i * 3 + 1] = clr.g;
+        colors[i * 3 + 2] = clr.b;
+      }
+
+      bufferGeo.setAttribute('position', new THREE.BufferAttribute(currentPos, 3));
+      bufferGeo.setAttribute('targetPos', new THREE.BufferAttribute(targetPos, 3));
+      bufferGeo.setAttribute('scatterPos', new THREE.BufferAttribute(scatterPos, 3));
+      bufferGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+      const mat = new THREE.PointsMaterial({
+        size: 0.08,
+        map: sparkTexture,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.95,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+
+      const pointsMesh = new THREE.Points(bufferGeo, mat);
+      group.add(pointsMesh);
+
+      group.userData = {
+        zoneId,
+        targetPos,
+        scatterPos,
+        currentPos,
+        bufferGeo,
+        mat,
+        originalScale: 1.14
+      };
+
+      scene.add(group);
+      return group;
+    }
+
+    // Zone 1: CCUS around the world (Globe with lat/long rings)
+    const m1Geos = [
+      new THREE.SphereGeometry(1.15, 24, 24),
+      new THREE.TorusGeometry(1.4, 0.03, 16, 64)
+    ];
+    particleModels.push(createParticleModel(m1Geos, 1400, 0xffffff, 1));
+
+    // Zone 2: Capture technologies lab (Flask structure)
+    const m2Geos = [
+      new THREE.CylinderGeometry(0.35, 0.35, 1.2, 16),
+      new THREE.SphereGeometry(0.95, 20, 20),
+      new THREE.TorusGeometry(0.65, 0.04, 16, 32)
+    ];
+    particleModels.push(createParticleModel(m2Geos, 1350, 0xffffff, 2));
+
+    // Zone 3: CO2 utilisation (Bottle container structure)
+    const m3Geos = [
+      new THREE.CylinderGeometry(0.7, 0.7, 1.8, 24),
+      new THREE.CylinderGeometry(0.3, 0.7, 0.6, 24),
+      new THREE.TorusGeometry(0.85, 0.03, 16, 32)
+    ];
+    particleModels.push(createParticleModel(m3Geos, 1300, 0xffffff, 3));
+
+    // Zone 4: Stakeholder engagement (Lightbulb structure with radial rays)
+    const m4Geos = [
+      new THREE.SphereGeometry(1.0, 20, 20),
+      new THREE.CylinderGeometry(0.5, 0.35, 0.8, 16),
+      new THREE.TorusGeometry(1.35, 0.02, 12, 48)
+    ];
+    particleModels.push(createParticleModel(m4Geos, 1300, 0xffffff, 4));
+
+    // Zone 5: Value chains & business cases (Interlocking circular chain links)
+    const m5Geos = [
+      new THREE.TorusGeometry(0.9, 0.06, 16, 48),
+      new THREE.TorusGeometry(0.9, 0.06, 16, 48)
+    ];
+    m5Geos[0].translate(-0.4, 0, 0);
+    m5Geos[1].translate(0.4, 0, 0);
+    m5Geos[1].rotateY(Math.PI / 3);
+    particleModels.push(createParticleModel(m5Geos, 1400, 0xffffff, 5));
+
+    // Zone 6: Net Zero (Concentric Target Discs)
+    const m6Geos = [
+      new THREE.TorusGeometry(1.3, 0.03, 16, 64),
+      new THREE.TorusGeometry(0.85, 0.03, 16, 48),
+      new THREE.SphereGeometry(0.35, 16, 16)
+    ];
+    particleModels.push(createParticleModel(m6Geos, 1350, 0xffffff, 6));
+
+    // Suspended Bokeh & Micro Sparks
+    const bokehCount = 650;
+    const bokehGeo = new THREE.BufferGeometry();
+    const bokehPos = new Float32Array(bokehCount * 3);
+    const bokehColors = new Float32Array(bokehCount * 3);
+
+    const oceanicTones = [
+      new THREE.Color(0x7dd3fc),
+      new THREE.Color(0x38bdf8),
+      new THREE.Color(0x0ea5e9),
+      new THREE.Color(0x0284c7),
+      new THREE.Color(0x22d3ee),
+      new THREE.Color(0xe0f2fe)
+    ];
+
+    for (let i = 0; i < bokehCount; i++) {
+      bokehPos[i * 3] = (Math.random() - 0.5) * 65;
+      bokehPos[i * 3 + 1] = (Math.random() - 0.5) * 35;
+      bokehPos[i * 3 + 2] = (Math.random() - 0.5) * 65;
+
+      const c = oceanicTones[Math.floor(Math.random() * oceanicTones.length)];
+      bokehColors[i * 3] = c.r;
+      bokehColors[i * 3 + 1] = c.g;
+      bokehColors[i * 3 + 2] = c.b;
+    }
+    bokehGeo.setAttribute('position', new THREE.BufferAttribute(bokehPos, 3));
+    bokehGeo.setAttribute('color', new THREE.BufferAttribute(bokehColors, 3));
+
+    const bokehMat = new THREE.PointsMaterial({
+      size: 0.65,
+      map: sparkTexture,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.55,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    const bokehOrbs = new THREE.Points(bokehGeo, bokehMat);
+    scene.add(bokehOrbs);
+
+    // Micro sparks field
+    const sparksCount = 3800;
+    const sparksGeo = new THREE.BufferGeometry();
+    const sparksPos = new Float32Array(sparksCount * 3);
+    const sparksColors = new Float32Array(sparksCount * 3);
+
+    for (let i = 0; i < sparksCount; i++) {
+      const radius = 2.0 + Math.random() * 32;
+      const angle = Math.random() * Math.PI * 2;
+      sparksPos[i * 3] = Math.cos(angle) * radius;
+      sparksPos[i * 3 + 1] = (Math.random() - 0.5) * 25;
+      sparksPos[i * 3 + 2] = Math.sin(angle) * radius;
+
+      const sparkColor = (Math.random() > 0.6) 
+        ? new THREE.Color(0xf0f9ff)
+        : new THREE.Color(0x38bdf8);
+
+      sparksColors[i * 3] = sparkColor.r;
+      sparksColors[i * 3 + 1] = sparkColor.g;
+      sparksColors[i * 3 + 2] = sparkColor.b;
+    }
+    sparksGeo.setAttribute('position', new THREE.BufferAttribute(sparksPos, 3));
+    sparksGeo.setAttribute('color', new THREE.BufferAttribute(sparksColors, 3));
+
+    const sparksMat = new THREE.PointsMaterial({
+      size: 0.12,
+      map: sparkTexture,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.7,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    const sparkField = new THREE.Points(sparksGeo, sparksMat);
+    scene.add(sparkField);
+
+    // Volumetric ray caustics shader
+    const volumetricRayShader = {
+      vertexShader: `
+        varying vec2 vUv;
+        varying vec3 vWorldPosition;
+        void main() {
+          vUv = uv;
+          vec4 worldPos = modelMatrix * vec4(position, 1.0);
+          vWorldPosition = worldPos.xyz;
+          gl_Position = projectionMatrix * viewMatrix * worldPos;
+        }
+      `,
+      fragmentShader: `
+        uniform float uTime;
+        uniform vec3 uSunColor;
+        uniform vec3 uOceanColor;
+        uniform float uIntensity;
+        varying vec2 vUv;
+        varying vec3 vWorldPosition;
+
+        float rayCaustics(vec2 p, float time) {
+          float r = 0.0;
+          r += sin(p.x * 1.8 + time * 0.2 + sin(p.y * 1.2 + time * 0.12)) * 0.5 + 0.5;
+          r += (sin(p.x * 3.8 - time * 0.25 + p.y * 1.8) * 0.5 + 0.5) * 0.35;
+          return r / 1.35;
+        }
+
+        void main() {
+          float depthFactor = pow(vUv.y, 1.2);
+          float dispersion = 1.0 + (1.0 - vUv.y) * 0.5;
+          vec2 coord = vec2(vUv.x * dispersion * 2.6, vUv.y * 1.4);
+
+          float rays = rayCaustics(coord, uTime);
+          rays = pow(rays, 1.3);
+
+          float lateralFade = smoothstep(0.0, 0.35, vUv.x) * smoothstep(1.0, 0.65, vUv.x);
+          float topBottomFade = smoothstep(0.0, 0.22, vUv.y) * smoothstep(1.0, 0.85, vUv.y);
+
+          float alpha = clamp(rays * depthFactor * lateralFade * topBottomFade * uIntensity, 0.0, 0.22);
+          vec3 tone = mix(uOceanColor, uSunColor, vUv.y * 0.7);
+
+          gl_FragColor = vec4(tone, alpha);
+        }
+      `
+    };
+
+    const lightCurtains = [];
+    const curtainCount = 12;
+    const curtainGroup = new THREE.Group();
+
+    for (let c = 0; c < curtainCount; c++) {
+      const curtainGeo = new THREE.PlaneGeometry(28, 44, 1, 1);
+      const curtainMat = new THREE.ShaderMaterial({
+        vertexShader: volumetricRayShader.vertexShader,
+        fragmentShader: volumetricRayShader.fragmentShader,
+        uniforms: {
+          uTime: { value: 0 },
+          uSunColor: { value: new THREE.Color(0x38bdf8) },
+          uOceanColor: { value: new THREE.Color(0x0369a1) },
+          uIntensity: { value: 0.18 + (c % 3) * 0.04 }
+        },
+        transparent: true,
+        blending: THREE.NormalBlending,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      });
+
+      const curtainMesh = new THREE.Mesh(curtainGeo, curtainMat);
+      const angle = (c / curtainCount) * Math.PI * 2;
+      curtainMesh.position.set(Math.cos(angle) * 16, 10, Math.sin(angle) * 16);
+      curtainMesh.rotation.y = angle + Math.PI / 2;
+      curtainMesh.rotation.x = -0.16;
+
+      curtainMesh.userData = {
+        baseX: curtainMesh.position.x,
+        baseZ: curtainMesh.position.z,
+        baseRotY: curtainMesh.rotation.y,
+        speed: 0.12 + Math.random() * 0.16,
+        phase: c * 0.8
+      };
+
+      lightCurtains.push(curtainMesh);
+      curtainGroup.add(curtainMesh);
+    }
+    scene.add(curtainGroup);
+
+    // FLIGHT CORRIDOR & NAVIGATION STATE
+    let hasEntered = false;
+    let isSoundOn = false;
+    let hasStartedJourney = false;
+
+    let activeStation = 0;
+    let currentScroll = 0.0;
+    let targetScroll = 0.0;
+
+    let lastScrollActionTime = 0;
+    const SCROLL_DEBOUNCE_MS = 480;
+
+    function stepStation(dir) {
+      const now = performance.now();
+      if (now - lastScrollActionTime < SCROLL_DEBOUNCE_MS) return;
+      lastScrollActionTime = now;
+
+      hasStartedJourney = true;
+      sound.triggerMelodicScrollNote(dir);
+
+      if (activeStation === 0) {
+        activeStation = (dir > 0) ? 1 : TOTAL_STATIONS;
+        targetScroll = (dir > 0) ? 1.0 : -1.0;
+      } else {
+        targetScroll = Math.round(currentScroll) + dir;
+        activeStation = ((Math.round(targetScroll) - 1) % TOTAL_STATIONS + TOTAL_STATIONS) % TOTAL_STATIONS + 1;
+      }
+
+      sound.playChime(activeStation);
+    }
+
+    window.goToStation = function(targetZoneIdx) {
+      sound.playClick();
+      hasStartedJourney = true;
+      
+      if (activeStation === targetZoneIdx) return;
+
+      if (activeStation === 0) {
+        activeStation = targetZoneIdx;
+        targetScroll = targetZoneIdx;
+      } else {
+        let diff = (targetZoneIdx - activeStation);
+        if (diff > 3) diff -= TOTAL_STATIONS;
+        if (diff < -3) diff += TOTAL_STATIONS;
+
+        activeStation = targetZoneIdx;
+        targetScroll = Math.round(currentScroll) + diff;
+      }
+
+      sound.playChime(targetZoneIdx);
+    };
+
+    // Wheel input
+    window.addEventListener('wheel', (e) => {
+      if (!hasEntered) return;
+      e.preventDefault();
+
+      if (Math.abs(e.deltaY) < 14) return;
+      const dir = Math.sign(e.deltaY);
+      stepStation(dir);
+    }, { passive: false });
+
+    // Touch swipe gesture handling
+    let touchStartY = 0;
+    let touchStartX = 0;
+
+    window.addEventListener('touchstart', (e) => {
+      if (!hasEntered) return;
+      touchStartY = e.touches[0].clientY;
+      touchStartX = e.touches[0].clientX;
+    }, { passive: true });
+
+    window.addEventListener('touchend', (e) => {
+      if (!hasEntered) return;
+
+      const dy = touchStartY - e.changedTouches[0].clientY;
+      const dx = touchStartX - e.changedTouches[0].clientX;
+
+      if (Math.abs(dy) > 36 || Math.abs(dx) > 36) {
+        const dir = (Math.abs(dy) > Math.abs(dx)) ? Math.sign(dy) : Math.sign(dx);
+        stepStation(dir);
+      }
+    }, { passive: true });
+
+    // Keyboard navigation
+    window.addEventListener('keydown', (e) => {
+      if (!hasEntered) return;
+      if (e.key === 'ArrowDown' || e.key === ' ' || e.key === 'PageDown' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        stepStation(1);
+      } else if (e.key === 'ArrowUp' || e.key === 'PageUp' || e.key === 'ArrowLeft') {
+        e.preventDefault();
+        stepStation(-1);
+      }
+    });
+
+    const btnEnterSound = document.getElementById('btn-enter-sound');
+    const btnEnterMute = document.getElementById('btn-enter-mute');
+    const welcomeModal = document.getElementById('welcome-modal');
+    const btnAudio = document.getElementById('btn-audio-toggle');
+    const audioIconOn = document.getElementById('audio-icon-on');
+    const audioIconOff = document.getElementById('audio-icon-off');
+
+    btnEnterSound.onclick = () => {
+      hasEntered = true;
+      welcomeModal.classList.add('opacity-0', 'pointer-events-none');
+      setTimeout(() => welcomeModal.remove(), 750);
+      isSoundOn = true;
+      audioIconOn.classList.remove('hidden');
+      audioIconOff.classList.add('hidden');
+      sound.init();
+      sound.startAmbient();
+      sound.playChime(1);
+    };
+
+    btnEnterMute.onclick = () => {
+      hasEntered = true;
+      welcomeModal.classList.add('opacity-0', 'pointer-events-none');
+      setTimeout(() => welcomeModal.remove(), 750);
+      isSoundOn = false;
+    };
+
+    btnAudio.onclick = () => {
+      isSoundOn = !isSoundOn;
+      if (isSoundOn) {
+        audioIconOn.classList.remove('hidden');
+        audioIconOff.classList.add('hidden');
+        sound.startAmbient();
+        sound.playChime(activeStation || 1);
+      } else {
+        audioIconOn.classList.add('hidden');
+        audioIconOff.classList.remove('hidden');
+        sound.stopAmbient();
+      }
+    };
+
+    let loadPct = 0;
+    const loaderBar = document.getElementById('loader-bar');
+    const loaderPct = document.getElementById('loader-pct');
+    const loadInterval = setInterval(() => {
+      loadPct += Math.floor(Math.random() * 22) + 12;
+      if (loadPct >= 100) {
+        loadPct = 100;
+        clearInterval(loadInterval);
+      }
+      loaderBar.style.width = `${loadPct}%`;
+      loaderPct.innerText = `${loadPct}%`;
+    }, 120);
+
+    // ANIMATION & RENDER LOOP
+    const clock = new THREE.Clock();
+
+    function renderLoop() {
+      requestAnimationFrame(renderLoop);
+
+      const delta = clock.getDelta();
+      const elapsed = clock.getElapsedTime();
+
+      currentScroll += (targetScroll - currentScroll) * 0.082;
+
+      if (hasStartedJourney) {
+        activeStation = ((Math.round(currentScroll) - 1) % TOTAL_STATIONS + TOTAL_STATIONS) % TOTAL_STATIONS + 1;
+      }
+
+      const traj = getCorridorTrajectory(currentScroll);
+      camera.position.set(traj.camPos.x, traj.camPos.y, traj.camPos.z);
+      camera.lookAt(traj.lookPos.x, traj.lookPos.y, traj.lookPos.z);
+
+      travelingLight.position.copy(camera.position);
+
+      bokehOrbs.position.z = camera.position.z;
+      sparkField.position.z = camera.position.z;
+      curtainGroup.position.z = camera.position.z;
+      curtainGroup.position.x = camera.position.x;
+
+      lightCurtains.forEach(c => {
+        c.material.uniforms.uTime.value = elapsed;
+        c.rotation.y = c.userData.baseRotY + Math.cos(elapsed * 0.18 + c.userData.phase) * 0.08;
+      });
+
+      bokehOrbs.rotation.y = elapsed * 0.012;
+      sparkField.rotation.y = -elapsed * 0.016;
+
+      const isIntro = (activeStation === 0 && !hasStartedJourney);
+
+      // Centered circle of 6 figures on intro (portrait-adaptive and tighter on mobile with continuous axial spinning)
+      particleModels.forEach((pGroup, idx) => {
+        const zoneIdx = idx + 1;
+        const uData = pGroup.userData;
+        const ptsPos = uData.bufferGeo.attributes.position.array;
+        const targetPts = uData.targetPos;
+        const scatterPts = uData.scatterPos;
+
+        if (isIntro) {
+          const angle = (idx / TOTAL_STATIONS) * Math.PI * 2;
+          const isMobile = window.innerWidth < 768;
+          // Tighter vertical ellipse for mobile screens so all 6 figures fit and don't get clipped
+          const rx = isMobile ? 1.55 : 3.6;
+          const ry = isMobile ? 2.35 : 1.95;
+          const figureScale = isMobile ? 0.32 : 0.48;
+
+          pGroup.position.set(Math.cos(angle) * rx, Math.sin(angle) * ry, -1.8);
+          pGroup.scale.setScalar(figureScale);
+          
+          pGroup.rotation.y = elapsed * 0.55 + idx * 0.4;
+          pGroup.rotation.x = Math.sin(elapsed * 0.45 + idx) * 0.25;
+
+          uData.mat.opacity = 0.95;
+
+          for (let i = 0; i < targetPts.length; i++) {
+            ptsPos[i] = targetPts[i];
+          }
+          uData.bufferGeo.attributes.position.needsUpdate = true;
+        } else {
+          const virtualIdx = zoneIdx + Math.round((currentScroll - zoneIdx) / TOTAL_STATIONS) * TOTAL_STATIONS;
+          const stationTraj = getCorridorTrajectory(virtualIdx);
+          pGroup.position.copy(stationTraj.modelPos);
+          
+          const isMobile = window.innerWidth < 768;
+          pGroup.scale.setScalar(isMobile ? uData.originalScale * 0.78 : uData.originalScale);
+
+          const dist = Math.abs(currentScroll - virtualIdx);
+          
+          // Phase 1: Particles assemble into the full figure early during approach (dist 0.85 -> 0.22)
+          const assembly = Math.max(0.0, Math.min(1.0, (0.85 - dist) / 0.6));
+          const flyThroughExpansion = (dist < 0.3) ? (1.0 + (0.3 - dist) * 2.8) : 1.0;
+
+          // Phase 2: Once locked at the station (dist < 0.25), dim and dissolve the background particle figure so it doesn't obstruct reading
+          const cardReadFactor = Math.max(0.0, 1.0 - (dist * 4.2)); // 0 when moving, 1 when stationary at station
+          const targetParticleOpacity = 0.95 * (1.0 - cardReadFactor * 0.87); // drops to ~0.12 when card is fully readable
+          uData.mat.opacity = THREE.MathUtils.lerp(uData.mat.opacity, targetParticleOpacity, 0.12);
+
+          for (let i = 0; i < targetPts.length / 3; i++) {
+            const ix = i * 3;
+            const iy = i * 3 + 1;
+            const iz = i * 3 + 2;
+
+            const px = scatterPts[ix] + (targetPts[ix] - scatterPts[ix]) * assembly;
+            const py = scatterPts[iy] + (targetPts[iy] - scatterPts[iy]) * assembly;
+            const pz = scatterPts[iz] + (targetPts[iz] - scatterPts[iz]) * assembly;
+
+            ptsPos[ix] = px * flyThroughExpansion;
+            ptsPos[iy] = py * flyThroughExpansion;
+            ptsPos[iz] = pz;
+          }
+          uData.bufferGeo.attributes.position.needsUpdate = true;
+
+          // Continuous axial spin along the corridor
+          pGroup.rotation.y = elapsed * (0.38 + idx * 0.05);
+          pGroup.rotation.x = Math.sin(elapsed * 0.45 + idx) * 0.14;
+        }
+      });
+
+      // Update HUD Cards visibility (Sequential: particles assemble first, then card layers in with steep falloff)
+      const isMobile = window.innerWidth < 768;
+      const xTrans = isMobile ? '-50%' : '0%';
+
+      CCUS_ZONES.forEach(z => {
+        const card = document.getElementById(`zone-card-${z.id}`);
+        if (!card) return;
+
+        let opacity = 0;
+        if (isIntro) {
+          opacity = 0.0;
+        } else {
+          const virtualIdx = z.id + Math.round((currentScroll - z.id) / TOTAL_STATIONS) * TOTAL_STATIONS;
+          const dist = Math.abs(currentScroll - virtualIdx);
+          // Card only appears once close to arrival (dist < 0.24) - sequential after particle formation!
+          opacity = Math.max(0, 1.0 - (dist * 4.2));
+        }
+
+        card.style.opacity = opacity.toFixed(3);
+
+        if (opacity > 0.05) {
+          card.style.transform = `translate(${xTrans}, -50%) scale(1)`;
+          card.style.pointerEvents = 'auto';
+          card.classList.remove('pointer-events-none');
+        } else {
+          card.style.transform = `translate(${xTrans}, calc(-50% + 14px)) scale(0.97)`;
+          card.style.pointerEvents = 'none';
+          card.classList.add('pointer-events-none');
+        }
+      });
+
+      // Update Scroll Prompt Visibility (only visible on first 2 scroll steps, then smoothly dissolves)
+      const scrollPrompt = document.getElementById('scroll-prompt');
+      if (scrollPrompt) {
+        const promptOpacity = Math.max(0, Math.min(1, (2.2 - Math.abs(currentScroll)) / 0.6));
+        scrollPrompt.style.opacity = promptOpacity.toFixed(3);
+        if (promptOpacity <= 0.02) {
+          scrollPrompt.style.visibility = 'hidden';
+          scrollPrompt.style.pointerEvents = 'none';
+        } else {
+          scrollPrompt.style.visibility = 'visible';
+        }
+      }
+
+      // Update Waypoint Flat Icons & Progress line on both Desktop and Mobile
+      const currentStationIdx = Math.max(1, Math.min(TOTAL_STATIONS, activeStation));
+      const progressPercent = ((currentStationIdx - 1) / (TOTAL_STATIONS - 1)) * 100;
+      
+      const railBarDesktop = document.getElementById('rail-progress-bar-desktop');
+      const railBarMobile = document.getElementById('rail-progress-bar-mobile');
+      if (railBarDesktop) railBarDesktop.style.height = `${progressPercent.toFixed(1)}%`;
+      if (railBarMobile) railBarMobile.style.width = `${progressPercent.toFixed(1)}%`;
+
+      for (let i = 1; i <= TOTAL_STATIONS; i++) {
+        const iconBtnDesktop = document.getElementById(`waypoint-icon-desktop-${i}`);
+        const iconBtnMobile = document.getElementById(`waypoint-icon-mobile-${i}`);
+
+        [iconBtnDesktop, iconBtnMobile].forEach(btn => {
+          if (!btn) return;
+          if (i === activeStation) {
+            btn.className = (btn === iconBtnDesktop)
+              ? 'group relative w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-cyan-300 scale-110 sm:scale-120 shadow-[0_0_18px_rgba(56,189,248,0.95)] ring-2 ring-cyan-400 bg-sky-950/90 transition-all duration-300'
+              : 'w-7 h-7 rounded-full flex items-center justify-center text-cyan-300 scale-115 shadow-[0_0_14px_rgba(56,189,248,0.9)] ring-2 ring-cyan-400 bg-sky-950/90 transition-all duration-300';
+          } else if (i < activeStation) {
+            btn.className = (btn === iconBtnDesktop)
+              ? 'group relative w-6 h-6 sm:w-7 sm:h-7 md:w-9 md:h-9 rounded-full flex items-center justify-center text-cyan-400/90 hover:text-white transition-all duration-300'
+              : 'w-7 h-7 rounded-full flex items-center justify-center text-cyan-400/90 transition-all duration-300';
+          } else {
+            btn.className = (btn === iconBtnDesktop)
+              ? 'group relative w-6 h-6 sm:w-7 sm:h-7 md:w-9 md:h-9 rounded-full flex items-center justify-center text-sky-400/40 hover:text-cyan-300 transition-all duration-300'
+              : 'w-7 h-7 rounded-full flex items-center justify-center text-sky-400/40 transition-all duration-300';
+          }
+        });
+      }
+
+      if (composer) {
+        composer.render();
+      } else {
+        renderer.render(scene, camera);
+      }
+    }
+
+    // Responsive resize handler
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      if (composer) {
+        composer.setSize(window.innerWidth, window.innerHeight);
+      }
+      if (dashCanvas) {
+        dashCanvas.width = window.innerWidth;
+        dashCanvas.height = window.innerHeight;
+      }
+    });
+
+    window.onload = function() {
+      renderLoop();
+    };
+  </script>
+</body>
+</html>
